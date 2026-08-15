@@ -23,4 +23,4 @@ export default function SpaceScene() {
             <Satellite position={satellite.position} />
         </Canvas>
     );
-}
+}
