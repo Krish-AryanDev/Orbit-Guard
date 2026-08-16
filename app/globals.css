@@ -1,4 +1,17 @@
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600;700;800&family=Orbitron:wght@400;500;600;700;800;900&display=swap');
 @import "tailwindcss";
+
+.font-orbitron {
+  font-family: 'Orbitron', -apple-system, BlinkMacSystemFont, sans-serif !important;
+}
+
+.font-mono,
+code,
+pre,
+kbd,
+samp {
+  font-family: 'JetBrains Mono', ui-monospace, SFMono-Regular, monospace !important;
+}
 
 @layer base {
   * {
@@ -10,7 +23,9 @@
     padding: 0;
     background-color: #000000;
     color: #f9fafb;
-    font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+    font-family: 'JetBrains Mono', ui-monospace, SFMono-Regular, monospace;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
     overflow-x: hidden;
     scroll-behavior: smooth;
   }

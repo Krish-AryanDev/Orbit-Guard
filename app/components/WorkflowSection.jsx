@@ -5,17 +5,21 @@ import { Shield, Play } from 'lucide-react';
 
 export function WorkflowSection({ onSimulateStep }) {
   return (
-    <section id="workflow-section" className="relative py-20 px-6 sm:px-10 lg:px-14 bg-[#030712] border-t border-slate-800">
+    <section
+      id="workflow-section"
+      style={{ fontFamily: "'JetBrains Mono', monospace" }}
+      className="relative py-20 px-6 sm:px-10 lg:px-14 bg-[#030712] border-t border-slate-800 font-mono"
+    >
       <div className="max-w-7xl mx-auto">
         <div className="mb-12">
-          <div className="flex items-center gap-2 text-xs font-mono text-cyan-400 uppercase tracking-widest mb-2">
+          <div className="flex items-center gap-2 text-xs text-cyan-400 uppercase tracking-widest mb-2 font-bold">
             <Shield className="w-4 h-4 text-cyan-400" />
             <span>SYSTEM PIPELINE & MISSION CONTROL</span>
           </div>
-          <h2 className="text-2xl sm:text-3xl font-bold tracking-tight text-white">
+          <h2 className="text-2xl sm:text-3xl font-black tracking-tight text-white">
             Autonomous Collision Avoidance Workflow
           </h2>
-          <p className="mt-2 text-sm text-slate-400 max-w-2xl">
+          <p className="mt-2 text-xs sm:text-sm text-slate-400 max-w-2xl leading-relaxed">
             Click any step in the pipeline below to test and simulate real-time ingestion, conjunction prediction, radar detection, and evasive maneuver execution.
           </p>
         </div>
@@ -42,11 +46,11 @@ export function WorkflowSection({ onSimulateStep }) {
               >
                 {/* Step Header */}
                 <div className="flex items-center justify-between mb-4">
-                  <span className="text-2xl font-black font-mono text-slate-600 group-hover:text-slate-400 transition-colors">
+                  <span className="text-2xl font-black text-slate-600 group-hover:text-slate-400 transition-colors">
                     {step.stepNumber}
                   </span>
                   <span
-                    className={`text-[10px] font-mono px-2 py-0.5 rounded font-bold uppercase tracking-wider ${
+                    className={`text-[10px] px-2 py-0.5 rounded font-bold uppercase tracking-wider ${
                       isAlert
                         ? 'bg-red-900/80 text-red-200 border border-red-500/40'
                         : isComplete
@@ -69,10 +73,10 @@ export function WorkflowSection({ onSimulateStep }) {
                   {step.description}
                 </p>
 
-                <ul className="space-y-2 border-t border-slate-800/80 pt-4 text-[11px] font-mono text-slate-300">
+                <ul className="space-y-2 border-t border-slate-800/80 pt-4 text-[11px] text-slate-300">
                   {step.details.map((detail, idx) => (
                     <li key={idx} className="flex items-start gap-2">
-                      <span className="text-cyan-500 mt-0.5">•</span>
+                      <span className="text-cyan-500 mt-0.5 font-bold">•</span>
                       <span>{detail}</span>
                     </li>
                   ))}

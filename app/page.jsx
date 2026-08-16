@@ -5,11 +5,8 @@ import dynamic from 'next/dynamic';
 import { Navbar } from './components/Navbar';
 import { HeroHUD } from './components/HeroHUD';
 import { ThreatHUD } from './components/ThreatHUD';
-import { WorkflowSection } from './components/WorkflowSection';
 import { SatelliteFleetDrawer } from './components/SatelliteFleetDrawer';
-import { Footer } from './components/Footer';
 import { INITIAL_SATELLITES, INITIAL_METRICS } from './Data/mockData';
-import { ChevronDown } from 'lucide-react';
 
 const API_BASE = "http://localhost:4000/api";
 
@@ -26,7 +23,14 @@ const OrbitScene = dynamic(() => import('./components/OrbitScene').then(mod => m
 export default function Home() {
   const [satellites, setSatellites] = useState(INITIAL_SATELLITES);
   const [selectedSatellite, setSelectedSatellite] = useState(null);
+  const [selectedDebris, setSelectedDebris] = useState(null);
   const [threatActive, setThreatActive] = useState(false);
+  const [threatData, setThreatData] = useState(null);
+  const [countdown, setCountdown] = useState(10);
+  const [isBlasted, setIsBlasted] = useState(false);
+  const [zoomTrigger, setZoomTrigger] = useState(null);
+  const [maneuverTrigger, setManeuverTrigger] = useState(null);
+  const [maneuverSuccess, setManeuverSuccess] = useState(false);
   const [isFleetOpen, setIsFleetOpen] = useState(false);
   const [metrics, setMetrics] = useState(INITIAL_METRICS);
 
@@ -39,12 +43,14 @@ export default function Home() {
         if (data.satellites && data.satellites.length > 0) {
           setSatellites((prev) =>
             prev.map((s, idx) => {
-              const bSat = data.satellites.find((b) => b.id === idx + 1);
+              const bSat = data.satellites.find((b) => b.id === idx + 1 || b.id === s.id);
               if (bSat) {
                 return {
                   ...s,
                   status: bSat.status || s.status,
                   fuelPct: bSat.fuel !== undefined ? bSat.fuel : s.fuelPct,
+                  position: bSat.position || s.position,
+                  velocity: bSat.velocity || s.velocity,
                 };
               }
               return s;
@@ -61,8 +67,109 @@ export default function Home() {
     fetchBackendState();
   }, [fetchBackendState]);
 
+  // 10-Second Countdown Timer & Blast Impact Trigger
+  useEffect(() => {
+    if (!threatActive || isBlasted) return;
+
+    const interval = setInterval(() => {
+      setCountdown((prev) => {
+        if (prev <= 1) {
+          clearInterval(interval);
+          // Impact occurred at 10s! Satellite is destroyed/blasted
+          setIsBlasted(true);
+          setSatellites((sats) =>
+            sats.map((s) =>
+              s.id === 'sat-4' || s.id === 4
+                ? { ...s, status: 'DESTROYED' }
+                : s
+            )
+          );
+          setMetrics((m) => ({
+            ...m,
+            threatLevel: 'CRITICAL',
+            systemStatus: 'ASSET_DESTROYED_IMPACT',
+          }));
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, [threatActive, isBlasted]);
+
   const handleLaunchDebris = async () => {
     setThreatActive(true);
+    setCountdown(10);
+    setIsBlasted(false);
+    setManeuverSuccess(false);
+    setSelectedDebris(null);
+    setZoomTrigger(Date.now()); // Triggers camera zoom in OrbitScene
+
+    const targetSat = satellites.find((s) => s.id === 'sat-4' || s.id === 4) || satellites[3];
+    setSelectedSatellite(targetSat);
+
+    try {
+      const res = await fetch(`${API_BASE}/debris/risky`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ targetSatelliteId: 4 })
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        const bTarget = data.targetSatellite;
+        const bThreat = data.threat;
+
+        setThreatData({
+          debrisName: data.riskyDebris?.name || "DEB-047 (HIGH-VELOCITY FRAG)",
+          targetSatelliteName: bTarget?.name || targetSat.name,
+          targetSatelliteCode: bTarget?.code || targetSat.code,
+          missDistance: "142 m",
+          altitudeKm: targetSat.altitudeKm || 840,
+          relativeSpeed: bThreat?.risk?.relativeSpeed || 10.42,
+          collisionProbability: bThreat?.risk?.collisionProbability || 0.00842,
+          riskScore: bThreat?.risk?.score || 85
+        });
+
+        setSatellites((prev) =>
+          prev.map((s) =>
+            s.id === targetSat.id || s.id === 'sat-4'
+              ? { ...s, status: 'CRITICAL' }
+              : s
+          )
+        );
+
+        setMetrics({
+          ...INITIAL_METRICS,
+          conjunctionEvents24h: 1,
+          collisionProbabilityMax: bThreat?.risk?.collisionProbability || 0.00842,
+          systemStatus: 'CONJUNCTION_ALERT',
+          defconLevel: 2,
+          threatLevel: 'CRITICAL',
+        });
+        return;
+      }
+    } catch (e) {
+      // Fallback
+    }
+
+    // Default simulation fallback
+    setThreatData({
+      debrisName: "DEB-047 (HIGH-VELOCITY FRAG)",
+      targetSatelliteName: targetSat.name,
+      targetSatelliteCode: targetSat.code,
+      missDistance: "142 m",
+      altitudeKm: targetSat.altitudeKm || 840,
+      relativeSpeed: 10.42,
+      collisionProbability: 0.00842,
+      riskScore: 85
+    });
+
+    setSatellites((prev) =>
+      prev.map((s) => (s.id === targetSat.id ? { ...s, status: 'CRITICAL' } : s))
+    );
+
     setMetrics({
       ...INITIAL_METRICS,
       conjunctionEvents24h: 1,
@@ -71,17 +178,16 @@ export default function Home() {
       defconLevel: 2,
       threatLevel: 'CRITICAL',
     });
-
-    const targetSat = satellites.find((s) => s.id === 'sat-4') || satellites[3];
-    setSelectedSatellite(targetSat);
-
-    try {
-      await fetch(`${API_BASE}/debris/risky`, { method: 'POST' });
-    } catch (e) {}
   };
 
   const handleResetSimulation = async () => {
     setThreatActive(false);
+    setIsBlasted(false);
+    setManeuverSuccess(false);
+    setManeuverTrigger(null);
+    setCountdown(10);
+    setSelectedDebris(null);
+    setThreatData(null);
     setMetrics(INITIAL_METRICS);
     setSelectedSatellite(null);
     setSatellites(INITIAL_SATELLITES);
@@ -92,40 +198,57 @@ export default function Home() {
   };
 
   const handleExecuteManeuver = async () => {
+    const targetSatId = 4;
+    let fuelDeduction = 0.4;
+    let newAlt = 960.0;
+
+    // Trigger Thruster Plume & Avoidance Animation in OrbitScene
+    setManeuverTrigger(Date.now());
+    setManeuverSuccess(true);
+
+    try {
+      const manRes = await fetch(`${API_BASE}/maneuver/${targetSatId}`, { method: 'POST' });
+      if (manRes.ok) {
+        const manData = await manRes.json();
+        if (manData.maneuver) {
+          const applyRes = await fetch(`${API_BASE}/maneuver/${targetSatId}/apply`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ maneuver: manData.maneuver }),
+          });
+          if (applyRes.ok) {
+            const applyData = await applyRes.json();
+            if (applyData.satellite) {
+              fuelDeduction = parseFloat(((manData.maneuver.deltaV || 1) * 0.4).toFixed(1));
+            }
+          }
+        }
+      }
+    } catch (e) {}
+
     setSatellites((prev) =>
       prev.map((s) =>
-        s.id === 'sat-4'
+        s.id === 'sat-4' || s.id === 4
           ? {
               ...s,
               status: 'NOMINAL',
-              altitudeKm: 583.5,
-              fuelPct: parseFloat((s.fuelPct - 0.4).toFixed(1)),
+              altitudeKm: newAlt,
+              fuelPct: parseFloat(Math.max(0, s.fuelPct - fuelDeduction).toFixed(1)),
             }
           : s
       )
     );
+
     setThreatActive(false);
+    setIsBlasted(false);
+    setCountdown(10);
+    setSelectedDebris(null);
     setMetrics({
       ...INITIAL_METRICS,
       collisionProbabilityMax: 0.000002,
       systemStatus: 'ACTIVE_TRACKING',
       threatLevel: 'SAFE',
     });
-
-    try {
-      const targetSatId = 4;
-      const manRes = await fetch(`${API_BASE}/maneuver/${targetSatId}`, { method: 'POST' });
-      if (manRes.ok) {
-        const manData = await manRes.json();
-        if (manData.maneuver) {
-          await fetch(`${API_BASE}/maneuver/${targetSatId}/apply`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ maneuver: manData.maneuver }),
-          });
-        }
-      }
-    } catch (e) {}
   };
 
   const scrollToWorkflow = () => {
@@ -136,21 +259,24 @@ export default function Home() {
   };
 
   return (
-    <div className="relative min-h-screen bg-[#000000] text-slate-100 selection:bg-orange-500 selection:text-black overflow-x-hidden">
+    <div className="relative h-screen w-screen bg-[#000000] text-slate-100 selection:bg-orange-500 selection:text-black overflow-hidden select-none">
       {/* Top Navbar */}
-      <Navbar
-        threatLevel={metrics.threatLevel}
-        onOpenFleet={() => setIsFleetOpen(true)}
-      />
+      <Navbar threatLevel={metrics.threatLevel} />
 
       {/* Main 3D Viewport Hero Section */}
-      <section className="relative w-full h-screen overflow-hidden">
+      <main className="relative w-full h-full overflow-hidden">
         <div className="absolute inset-0 z-0">
           <OrbitScene
             satellites={satellites}
             selectedSatellite={selectedSatellite}
             onSelectSatellite={setSelectedSatellite}
+            selectedDebris={selectedDebris}
+            onSelectDebris={setSelectedDebris}
             threatActive={threatActive}
+            targetSatellite={selectedSatellite || satellites.find((s) => s.id === 'sat-4' || s.id === 4)}
+            isBlasted={isBlasted}
+            zoomTrigger={zoomTrigger}
+            maneuverTrigger={maneuverTrigger}
           />
         </div>
 
@@ -159,39 +285,20 @@ export default function Home() {
           threatLevel={metrics.threatLevel}
           onLaunchDebris={handleLaunchDebris}
           onResetSimulation={handleResetSimulation}
-          onEnterMissionControl={scrollToWorkflow}
         />
 
-        {/* Threat Alert Panel */}
+        {/* Small Rectangular Threat Analysis HUD + Mission Control Section + Real-Time Graph */}
         <ThreatHUD
           threatActive={threatActive}
+          threatData={threatData}
+          countdown={countdown}
+          isBlasted={isBlasted}
+          maneuverSuccess={maneuverSuccess}
           onExecuteManeuver={handleExecuteManeuver}
+          onLaunchDebris={handleLaunchDebris}
+          onResetSimulation={handleResetSimulation}
         />
-
-        {/* Scroll Indicator */}
-        <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-20 pointer-events-auto">
-          <button
-            onClick={scrollToWorkflow}
-            className="flex flex-col items-center gap-0.5 text-[10px] font-mono text-slate-500 hover:text-slate-300 transition-colors cursor-pointer"
-          >
-            <span>SYSTEM FLOW</span>
-            <ChevronDown className="w-4 h-4 text-slate-500 animate-bounce" />
-          </button>
-        </div>
-      </section>
-
-      {/* Mission Control Workflow Section */}
-      <WorkflowSection
-        onSimulateStep={(stepId) => {
-          if (stepId === 'step-2' || stepId === 'step-3') {
-            handleLaunchDebris();
-          } else if (stepId === 'step-4') {
-            handleExecuteManeuver();
-          } else {
-            handleResetSimulation();
-          }
-        }}
-      />
+      </main>
 
       {/* Monitored Fleet Drawer */}
       <SatelliteFleetDrawer
@@ -205,9 +312,6 @@ export default function Home() {
         }}
         threatActive={threatActive}
       />
-
-      {/* Footer */}
-      <Footer />
     </div>
   );
 }

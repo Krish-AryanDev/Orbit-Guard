@@ -13,7 +13,10 @@ export function SatelliteFleetDrawer({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex justify-end bg-black/70 backdrop-blur-sm animate-in fade-in duration-200">
+    <div
+      style={{ fontFamily: "'JetBrains Mono', monospace" }}
+      className="fixed inset-0 z-50 flex justify-end bg-black/70 backdrop-blur-sm animate-in fade-in duration-200 font-mono"
+    >
       <div className="w-full max-w-lg bg-slate-950 border-l border-slate-800 h-full flex flex-col shadow-2xl overflow-hidden">
         {/* Drawer Header */}
         <div className="p-6 border-b border-slate-800 flex items-center justify-between bg-slate-900/50">
